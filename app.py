@@ -17,33 +17,49 @@ def check_range(value, low, high):
     else:
         return "🟢 Normal"
 
-# ---------- UI STYLE ----------
+# ---------- PREMIUM CSS ----------
 st.markdown("""
 <style>
 .main {
-    background-color: #f5f7fa;
+    background: linear-gradient(135deg, #eef2f3, #ffffff);
 }
-.title {
-    font-size: 40px;
-    font-weight: bold;
+
+/* Header */
+.glass-header {
+    background: linear-gradient(90deg,#ff4b4b,#ff7b7b);
+    padding: 25px;
+    border-radius: 18px;
+    text-align: center;
+    color: white;
+    box-shadow: 0px 8px 25px rgba(0,0,0,0.15);
+}
+
+/* Card */
+.card {
+    background: rgba(255,255,255,0.85);
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0px 6px 18px rgba(0,0,0,0.08);
+    margin-bottom: 20px;
+}
+
+/* Section Title */
+.section-title {
+    font-size: 22px;
+    font-weight: 600;
     color: #2c3e50;
+    margin-bottom: 10px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# Title
+# ---------- HEADER ----------
 st.markdown("""
-<div style='text-align: center; padding: 20px;'>
-    <h1 style='color:#FF4B4B; font-size:42px; margin-bottom:5px;'>
-        🩺 Diabetes Health Dashboard
-    </h1>
-    <p style='font-size:18px; color:gray;'>
-        Smart Health Analysis & Risk Prediction System
-    </p>
+<div class="glass-header">
+    <h1>🩺 Diabetes Health Dashboard</h1>
+    <p>AI-Powered Smart Health Risk Analysis System</p>
 </div>
 """, unsafe_allow_html=True)
-
-
 
 # ---------- LOAD DATA ----------
 df = pd.read_csv("diabetes.csv")
@@ -51,19 +67,17 @@ df = pd.read_csv("diabetes.csv")
 X = df.drop(columns='Outcome', axis=1)
 Y = df['Outcome']
 
-# Split
 X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=2)
 
-# Scaling
 scaler = StandardScaler()
 X_train = scaler.fit_transform(X_train)
 
-# Model
 model = SVC(kernel='linear')
 model.fit(X_train, Y_train)
 
-# ---------- INPUT SECTION ----------
-st.markdown("### 📋 Enter Patient Details")
+# ---------- INPUT CARD ----------
+st.markdown('<div class="card">', unsafe_allow_html=True)
+st.markdown('<div class="section-title">📋 Enter Patient Details</div>', unsafe_allow_html=True)
 
 col1, col2, col3 = st.columns(3)
 
@@ -88,16 +102,15 @@ with col3:
     age = st.number_input("🎂 Age", 1, 100, 30)
     st.caption("Depends on person")
 
-# Extra sliders
 skin = st.slider("🧬 Skin Thickness", 0, 100, 20)
 st.caption("Typical: 10–40")
 
 dpf = st.slider("🧬 Diabetes Pedigree Function", 0.0, 2.5, 0.5)
 st.caption("Higher = more genetic risk")
 
-st.markdown("---")
+st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------- PREDICTION ----------
+# ---------- BUTTON ----------
 if st.button("🔍 Analyze Health", use_container_width=True):
 
     input_data = np.array([[preg, glucose, bp, skin, insulin, bmi, dpf, age]])
@@ -105,7 +118,9 @@ if st.button("🔍 Analyze Health", use_container_width=True):
 
     prediction = model.predict(input_data)
 
-    st.markdown("## 🧾 Health Report")
+    # ---------- RESULT CARD ----------
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">🧾 Health Report</div>', unsafe_allow_html=True)
 
     if prediction[0] == 1:
         st.error("⚠️ High Risk of Diabetes Detected")
@@ -124,10 +139,9 @@ if st.button("🔍 Analyze Health", use_container_width=True):
             st.markdown("### 🩺 What You Should Do")
             st.write("""
             ✔ Consult a doctor  
-            ✔ Blood sugar test (Fasting / HbA1c)  
-            ✔ Follow low sugar diet  
+            ✔ Blood sugar test  
+            ✔ Healthy diet  
             ✔ Daily exercise  
-            ✔ Avoid junk food  
             """)
 
     else:
@@ -138,17 +152,24 @@ if st.button("🔍 Analyze Health", use_container_width=True):
         🥗 Balanced diet  
         🏃 Exercise regularly  
         ⚖ Maintain healthy weight  
-        🩺 Regular health checkups  
+        🩺 Regular checkups  
         """)
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------- FOOTER ----------
 st.markdown("---")
 st.caption("🌟 Stay Healthy | Made with ❤️ using Machine Learning")
+
+# ---------- DISCLAIMER ----------
+st.markdown('<div class="card">', unsafe_allow_html=True)
 st.warning("""
 ⚠️ Disclaimer
 
-This tool is designed to give a general idea about diabetes risk using machine learning techniques.  
-It is not intended to provide medical diagnosis or treatment recommendations.
+This application provides an estimated diabetes risk based on entered data.  
+It is intended for awareness and learning purposes only.
 
-Consider the results as informative guidance only, and always seek advice from a healthcare professional for medical concerns.
+The results should not be considered as medical advice or diagnosis.  
+Always consult a qualified healthcare professional for proper evaluation.
 """)
+st.markdown('</div>', unsafe_allow_html=True)
