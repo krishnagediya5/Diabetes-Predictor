@@ -6,7 +6,8 @@ from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 import plotly.graph_objects as go
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
 import time
 
@@ -31,7 +32,7 @@ def save_result(u,r,prob):
     conn.commit()
 
 # ---------- PAGE ----------
-st.set_page_config(page_title="Diabetes AI Dashboard", layout="wide")
+st.set_page_config(page_title="Diabetes AI Platform", layout="wide")
 
 # ---------- SESSION ----------
 if "login" not in st.session_state:
@@ -67,124 +68,142 @@ if not st.session_state.login:
 # ---------- MAIN ----------
 else:
 
-    st.sidebar.success(f"👋 {st.session_state.user}")
+    user = st.session_state.user
+
+    st.sidebar.success(f"👋 {user}")
+
     if st.sidebar.button("Logout"):
         st.session_state.login=False
         st.rerun()
 
-    st.title("🩺 Diabetes Health Dashboard")
+    # ---------- ADMIN CHECK ----------
+    if user == "admin":
 
-    # ---------- DATA ----------
-    df = pd.read_csv("diabetes.csv")
-    X = df.drop(columns='Outcome', axis=1)
-    Y = df['Outcome']
+        st.title("🧑‍💼 Admin Dashboard")
 
-    X_train,_,Y_train,_ = train_test_split(X,Y,test_size=0.2)
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
+        # USERS
+        c.execute("SELECT COUNT(*) FROM users")
+        total_users = c.fetchone()[0]
 
-    model = SVC(kernel='linear', probability=True)
-    model.fit(X_train,Y_train)
+        c.execute("SELECT AVG(risk) FROM history")
+        avg_risk = c.fetchone()[0] or 0
 
-    # ---------- INPUT ----------
-    col1,col2,col3 = st.columns(3)
+        col1,col2 = st.columns(2)
 
-    with col1:
-        preg = st.number_input("Pregnancies",0,20,1)
-        glucose = st.number_input("Glucose",0,200,100)
+        col1.metric("👥 Total Users", total_users)
+        col2.metric("🧠 Avg Risk", f"{avg_risk:.2f}")
 
-    with col2:
-        bp = st.number_input("BP",0,150,80)
-        bmi = st.number_input("BMI",10.0,50.0,22.0)
+        # ALL DATA
+        st.subheader("📊 All User Data")
+        c.execute("SELECT * FROM history")
+        data = c.fetchall()
 
-    with col3:
-        insulin = st.number_input("Insulin",0,300,80)
-        age = st.number_input("Age",1,100,30)
+        if data:
+            df_all = pd.DataFrame(data, columns=["User","Result","Risk"])
+            st.dataframe(df_all)
 
-    skin = st.slider("Skin",0,100,20)
-    dpf = st.slider("DPF",0.0,2.5,0.5)
+            # GRAPH
+            fig = go.Figure(go.Bar(x=df_all["User"], y=df_all["Risk"]))
+            st.plotly_chart(fig, use_container_width=True)
 
-    # ---------- ANALYZE ----------
-    if st.button("🚀 Analyze Diabetes Risk"):
+    else:
 
-        with st.spinner("Analyzing..."):
-            time.sleep(1)
+        st.title("🩺 Diabetes Health Dashboard")
 
-        input_data = np.array([[preg,glucose,bp,skin,insulin,bmi,dpf,age]])
-        input_data = scaler.transform(input_data)
+        # ---------- DATA ----------
+        df = pd.read_csv("diabetes.csv")
+        X = df.drop(columns='Outcome', axis=1)
+        Y = df['Outcome']
 
-        pred = model.predict(input_data)
-        prob = model.predict_proba(input_data)[0][1]*100
+        X_train,_,Y_train,_ = train_test_split(X,Y,test_size=0.2)
+        scaler = StandardScaler()
+        X_train = scaler.fit_transform(X_train)
 
-        result = "High Risk" if pred[0]==1 else "Low Risk"
-        save_result(st.session_state.user,result,prob)
+        model = SVC(kernel='linear', probability=True)
+        model.fit(X_train,Y_train)
 
-        # ---------- GAUGE ----------
-        fig = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=prob,
-            title={'text': "Diabetes Risk %"},
-            gauge={'axis': {'range': [0,100]}}
-        ))
-        st.plotly_chart(fig, use_container_width=True)
+        # ---------- INPUT ----------
+        col1,col2,col3 = st.columns(3)
 
-        # ---------- RESULT ----------
-        st.metric("Risk %", f"{prob:.2f}")
-        st.progress(int(prob))
+        with col1:
+            preg = st.number_input("Pregnancies",0,20,1)
+            glucose = st.number_input("Glucose",0,200,100)
 
-        if pred[0]==1:
-            st.error("⚠️ High Risk")
-        else:
-            st.success("✅ Healthy")
+        with col2:
+            bp = st.number_input("BP",0,150,80)
+            bmi = st.number_input("BMI",10.0,50.0,22.0)
 
-        # ---------- LIVE ANALYTICS ----------
-        st.subheader("📊 Live Health Analytics")
+        with col3:
+            insulin = st.number_input("Insulin",0,300,80)
+            age = st.number_input("Age",1,100,30)
 
-        colA,colB = st.columns(2)
+        skin = st.slider("Skin",0,100,20)
+        dpf = st.slider("DPF",0.0,2.5,0.5)
 
-        with colA:
-            fig2 = go.Figure(go.Bar(x=["Glucose","BP","BMI"], y=[glucose,bp,bmi]))
-            st.plotly_chart(fig2, use_container_width=True)
+        # ---------- ANALYZE ----------
+        if st.button("🚀 Analyze Diabetes Risk"):
 
-        with colB:
-            fig3 = go.Figure(go.Pie(labels=["Risk","Safe"], values=[prob,100-prob]))
-            st.plotly_chart(fig3, use_container_width=True)
+            with st.spinner("Analyzing..."):
+                time.sleep(1)
 
-        # ---------- PDF ----------
-        def create_pdf():
-            doc = SimpleDocTemplate("report.pdf")
-            styles = getSampleStyleSheet()
-            content = []
+            input_data = np.array([[preg,glucose,bp,skin,insulin,bmi,dpf,age]])
+            input_data = scaler.transform(input_data)
 
-            content.append(Paragraph("Diabetes Health Report", styles["Title"]))
-            content.append(Spacer(1,10))
-            content.append(Paragraph(f"Patient: {st.session_state.user}", styles["Normal"]))
-            content.append(Paragraph(f"Result: {result}", styles["Normal"]))
-            content.append(Paragraph(f"Risk: {prob:.2f}%", styles["Normal"]))
-            content.append(Spacer(1,10))
+            pred = model.predict(input_data)
+            prob = model.predict_proba(input_data)[0][1]*100
 
-            content.append(Paragraph("Recommendations:", styles["Heading2"]))
-            content.append(Paragraph("• Healthy diet", styles["Normal"]))
-            content.append(Paragraph("• Regular exercise", styles["Normal"]))
-            content.append(Paragraph("• Doctor consultation", styles["Normal"]))
+            result = "High Risk" if pred[0]==1 else "Low Risk"
+            save_result(user,result,prob)
 
-            doc.build(content)
+            st.metric("Risk %", f"{prob:.2f}")
+            st.progress(int(prob))
 
-        create_pdf()
+            if pred[0]==1:
+                st.error("⚠️ High Risk")
+            else:
+                st.success("✅ Healthy")
 
-        with open("report.pdf","rb") as f:
-            st.download_button("📄 Download Medical Report", f, file_name="Diabetes_Report.pdf")
+            # ---------- PDF REPORT ----------
+            def create_pdf():
+                doc = SimpleDocTemplate("report.pdf")
+                styles = getSampleStyleSheet()
 
-    # ---------- HISTORY ANALYTICS ----------
-    st.subheader("📈 Your Health Trends")
+                data = [
+                    ["Parameter","Value"],
+                    ["Pregnancies",preg],
+                    ["Glucose",glucose],
+                    ["BP",bp],
+                    ["BMI",bmi],
+                    ["Insulin",insulin],
+                    ["Age",age],
+                    ["Risk %",f"{prob:.2f}"],
+                    ["Result",result]
+                ]
 
-    c.execute("SELECT risk FROM history WHERE username=?", (st.session_state.user,))
-    data = c.fetchall()
+                table = Table(data)
+                table.setStyle(TableStyle([
+                    ('BACKGROUND',(0,0),(-1,0),colors.grey),
+                    ('TEXTCOLOR',(0,0),(-1,0),colors.white),
+                    ('GRID',(0,0),(-1,-1),1,colors.black)
+                ]))
 
-    if data:
-        risks = [i[0] for i in data]
+                content = []
+                content.append(Paragraph("Diabetes Medical Report", styles["Title"]))
+                content.append(Spacer(1,10))
+                content.append(table)
 
-        fig4 = go.Figure(go.Scatter(y=risks, mode='lines+markers'))
-        st.plotly_chart(fig4, use_container_width=True)
+                doc.build(content)
 
-        st.write("📊 Your risk trend over time")
+            create_pdf()
+
+            with open("report.pdf","rb") as f:
+                st.download_button("📄 Download Report", f, file_name="Medical_Report.pdf")
+
+        # ---------- HISTORY ----------
+        st.subheader("📊 Your History")
+
+        c.execute("SELECT * FROM history WHERE username=?", (user,))
+        data = c.fetchall()
+
+        if data:
+            st.dataframe(pd.DataFrame(data, columns=["User","Result","Risk"]))
