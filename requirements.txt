@@ -4,4 +4,4 @@ pandas
 scikit-learn
 plotly
 reportlab
-bcrypt
+matplotlib  
