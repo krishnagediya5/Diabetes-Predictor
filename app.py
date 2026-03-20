@@ -2,13 +2,14 @@ import streamlit as st
 import sqlite3
 import numpy as np
 import pandas as pd
+import datetime
 from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 import plotly.graph_objects as go
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet
-import datetime
+import matplotlib.pyplot as plt
 
 # ---------- DATABASE ----------
 conn = sqlite3.connect("users.db", check_same_thread=False)
@@ -31,7 +32,32 @@ def save_result(u,r,prob):
     conn.commit()
 
 # ---------- PAGE ----------
-st.set_page_config(page_title="Diabetes AI Dashboard", layout="wide")
+st.set_page_config(page_title="Diabetes Dashboard", layout="wide")
+
+# ---------- PREMIUM UI ----------
+st.markdown("""
+<style>
+.main {
+    background: linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+    color:white;
+}
+.card {
+    background: rgba(255,255,255,0.08);
+    backdrop-filter: blur(15px);
+    padding:20px;
+    border-radius:20px;
+    margin-bottom:20px;
+}
+.title {
+    font-size:40px;
+    text-align:center;
+    font-weight:bold;
+    background: linear-gradient(90deg,#00f2fe,#4facfe);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ---------- SESSION ----------
 if "login" not in st.session_state:
@@ -40,7 +66,7 @@ if "login" not in st.session_state:
 # ---------- LOGIN ----------
 if not st.session_state.login:
 
-    st.title("🍬 Diabetes AI System")
+    st.markdown('<div class="title">🍬 Diabetes AI System</div>', unsafe_allow_html=True)
 
     tab1,tab2 = st.tabs(["Login","Signup"])
 
@@ -54,7 +80,7 @@ if not st.session_state.login:
                 st.session_state.user=u
                 st.rerun()
             else:
-                st.error("Invalid")
+                st.error("Invalid credentials")
 
     with tab2:
         u = st.text_input("New Username")
@@ -74,21 +100,20 @@ else:
         st.session_state.login=False
         st.rerun()
 
-    st.title("🩺 Diabetes Health Dashboard")
+    st.markdown('<div class="title">🩺 Diabetes Dashboard</div>', unsafe_allow_html=True)
 
     # ---------- ADMIN ----------
     if admin_mode:
-        st.subheader("📊 Admin Dashboard")
+        st.subheader("📊 Admin Panel")
 
         c.execute("SELECT COUNT(*) FROM users")
-        total_users = c.fetchone()[0]
+        users = c.fetchone()[0]
 
         c.execute("SELECT AVG(risk) FROM history")
-        avg_risk = c.fetchone()[0]
+        avg = c.fetchone()[0]
 
-        col1,col2 = st.columns(2)
-        col1.metric("Total Users", total_users)
-        col2.metric("Average Risk", f"{avg_risk:.2f}" if avg_risk else "0")
+        st.metric("Users", users)
+        st.metric("Avg Risk", f"{avg:.2f}" if avg else "0")
 
         c.execute("SELECT * FROM history")
         data = c.fetchall()
@@ -97,15 +122,13 @@ else:
             df_admin = pd.DataFrame(data, columns=["User","Result","Risk"])
             st.dataframe(df_admin)
 
-        # 📊 Admin graph
-        if data:
             risks = [i[2] for i in data]
-            fig_admin = go.Figure(go.Scatter(y=risks, mode='lines+markers'))
-            st.plotly_chart(fig_admin, use_container_width=True)
+            fig = go.Figure(go.Scatter(y=risks, mode='lines+markers'))
+            st.plotly_chart(fig)
 
         st.stop()
 
-    # ---------- LOAD DATA ----------
+    # ---------- MODEL ----------
     df = pd.read_csv("diabetes.csv")
     X = df.drop(columns='Outcome', axis=1)
     Y = df['Outcome']
@@ -118,6 +141,8 @@ else:
     model.fit(X_train,Y_train)
 
     # ---------- INPUT ----------
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+
     col1,col2,col3 = st.columns(3)
 
     with col1:
@@ -135,8 +160,10 @@ else:
     skin = st.slider("Skin",0,100,20)
     dpf = st.slider("DPF",0.0,2.5,0.5)
 
+    st.markdown('</div>', unsafe_allow_html=True)
+
     # ---------- ANALYZE ----------
-    if st.button("🚀 Analyze Diabetes Risk"):
+    if st.button("🚀 Analyze"):
 
         input_data = np.array([[preg,glucose,bp,skin,insulin,bmi,dpf,age]])
         input_data = scaler.transform(input_data)
@@ -155,19 +182,18 @@ else:
         else:
             st.success("✅ Healthy")
 
-        # ---------- GRAPH 1 (Glucose) ----------
-        fig1 = go.Figure(go.Bar(
-            x=["Your Glucose","Normal"],
-            y=[glucose,110]
-        ))
-        st.plotly_chart(fig1, use_container_width=True)
+        # ---------- GRAPHS ----------
+        fig1 = go.Figure(go.Bar(x=["You","Normal"], y=[glucose,110]))
+        st.plotly_chart(fig1)
 
-        # ---------- GRAPH 2 (Risk Pie) ----------
-        fig2 = go.Figure(go.Pie(
-            labels=["Risk","Safe"],
-            values=[prob,100-prob]
-        ))
-        st.plotly_chart(fig2, use_container_width=True)
+        fig2 = go.Figure(go.Pie(labels=["Risk","Safe"], values=[prob,100-prob]))
+        st.plotly_chart(fig2)
+
+        # ---------- PDF GRAPH ----------
+        plt.figure()
+        plt.bar(["You","Normal"], [glucose,110])
+        plt.savefig("graph.png")
+        plt.close()
 
         # ---------- PDF ----------
         def create_pdf():
@@ -180,8 +206,8 @@ else:
 
             content.append(Paragraph(f"Patient: {st.session_state.user}", styles["Normal"]))
             content.append(Paragraph(f"Date: {datetime.date.today()}", styles["Normal"]))
-            content.append(Spacer(1,10))
 
+            content.append(Spacer(1,10))
             content.append(Paragraph("Test Results:", styles["Heading2"]))
             content.append(Paragraph(f"Glucose: {glucose}", styles["Normal"]))
             content.append(Paragraph(f"BP: {bp}", styles["Normal"]))
@@ -192,23 +218,23 @@ else:
             content.append(Paragraph(f"Risk: {prob:.2f}%", styles["Normal"]))
 
             content.append(Spacer(1,10))
+            content.append(Paragraph("Graph:", styles["Heading2"]))
+            content.append(Image("graph.png", width=400, height=200))
+
+            content.append(Spacer(1,10))
             content.append(Paragraph("Recommendations:", styles["Heading2"]))
             content.append(Paragraph("• Healthy diet", styles["Normal"]))
             content.append(Paragraph("• Exercise daily", styles["Normal"]))
-            content.append(Paragraph("• Doctor consultation", styles["Normal"]))
-
-            content.append(Spacer(1,20))
-            content.append(Paragraph("Signature: ____________", styles["Normal"]))
 
             doc.build(content)
 
         create_pdf()
 
         with open("report.pdf","rb") as f:
-            st.download_button("📄 Download Report", f)
+            st.download_button("📄 Download Full Medical Report", f, file_name="Diabetes_Report.pdf")
 
-    # ---------- USER HISTORY GRAPH ----------
-    st.subheader("📈 Your Risk Trend")
+    # ---------- HISTORY GRAPH ----------
+    st.subheader("📈 Your Trend")
 
     c.execute("SELECT risk FROM history WHERE username=?", (st.session_state.user,))
     data = c.fetchall()
@@ -216,13 +242,5 @@ else:
     if data:
         risks = [i[0] for i in data]
         fig3 = go.Figure(go.Scatter(y=risks, mode='lines+markers'))
-        st.plotly_chart(fig3, use_container_width=True)
-
-    # ---------- TABLE ----------
-    st.subheader("📊 Your History Table")
-
-    c.execute("SELECT * FROM history WHERE username=?", (st.session_state.user,))
-    data = c.fetchall()
-
-    if data:
-        st.dataframe(pd.DataFrame(data, columns=["User","Result","Risk"]))
+        st.plotly_chart(fig3)
+        
