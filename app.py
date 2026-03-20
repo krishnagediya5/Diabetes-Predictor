@@ -4,16 +4,16 @@ import pandas as pd
 from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
+import plotly.graph_objects as go
+from reportlab.platypus import SimpleDocTemplate, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
 
 # ---------- PAGE ----------
-st.set_page_config(page_title="AI Diabetes Dashboard", layout="wide")
+st.set_page_config(page_title="Ultimate AI Health Dashboard", layout="wide")
 
 # ---------- SIDEBAR ----------
 st.sidebar.title("⚙️ Settings")
-theme = st.sidebar.toggle("🌙 Dark Mode", value=True)
-
-st.sidebar.markdown("---")
-st.sidebar.info("🧠 AI Health Predictor\n\nBuilt using Machine Learning")
+theme = st.sidebar.toggle("🌙 Dark Mode", True)
 
 # ---------- THEME ----------
 if theme:
@@ -26,37 +26,23 @@ else:
 # ---------- CSS ----------
 st.markdown(f"""
 <style>
-
 .main {{
     background: {bg};
     color: {text};
 }}
 
-/* HEADER */
-.header {{
-    background: linear-gradient(90deg,#ff416c,#ff4b2b);
-    padding: 25px;
-    border-radius: 20px;
-    text-align: center;
-    color: white;
-    box-shadow: 0px 10px 30px rgba(0,0,0,0.2);
-}}
-
-/* CARD */
 .card {{
     background: rgba(255,255,255,0.08);
-    backdrop-filter: blur(12px);
-    padding: 20px;
-    border-radius: 18px;
-    margin-bottom: 20px;
+    padding:20px;
+    border-radius:20px;
+    margin-bottom:20px;
 }}
 
-/* BADGE */
 .badge {{
-    padding: 4px 10px;
-    border-radius: 10px;
-    color: white;
-    font-size: 13px;
+    padding:4px 10px;
+    border-radius:10px;
+    color:white;
+    font-size:13px;
 }}
 
 </style>
@@ -72,25 +58,19 @@ def check_range(value, low, high):
         return "🟢 Normal", "#2ecc71"
 
 # ---------- HEADER ----------
-st.markdown("""
-<div class="header">
-    <h1>🩺 AI Diabetes Dashboard</h1>
-    <p>Smart Health Risk Detection System</p>
-</div>
-""", unsafe_allow_html=True)
+st.title("🩺 Ultimate AI Diabetes Dashboard")
 
-# ---------- LOAD DATA ----------
+# ---------- DATA ----------
 df = pd.read_csv("diabetes.csv")
-
 X = df.drop(columns='Outcome', axis=1)
 Y = df['Outcome']
 
-X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=2)
+X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2)
 
 scaler = StandardScaler()
 X_train = scaler.fit_transform(X_train)
 
-model = SVC(kernel='linear')
+model = SVC(kernel='linear', probability=True)
 model.fit(X_train, Y_train)
 
 # ---------- INPUT ----------
@@ -100,69 +80,88 @@ col1, col2, col3 = st.columns(3)
 
 with col1:
     preg = st.number_input("🤰 Pregnancies", 0, 20, 1)
-
     glucose = st.number_input("🍬 Glucose", 0, 200, 100)
     s,c = check_range(glucose,70,140)
     st.markdown(f"<span class='badge' style='background:{c}'>{s}</span>", unsafe_allow_html=True)
 
 with col2:
-    bp = st.number_input("💓 Blood Pressure", 0, 150, 80)
-    s,c = check_range(bp,80,120)
-    st.markdown(f"<span class='badge' style='background:{c}'>{s}</span>", unsafe_allow_html=True)
-
+    bp = st.number_input("💓 BP", 0, 150, 80)
     bmi = st.number_input("⚖️ BMI", 10.0, 50.0, 22.0)
-    s,c = check_range(bmi,18.5,24.9)
-    st.markdown(f"<span class='badge' style='background:{c}'>{s}</span>", unsafe_allow_html=True)
 
 with col3:
     insulin = st.number_input("💉 Insulin", 0, 300, 80)
-    s,c = check_range(insulin,16,166)
-    st.markdown(f"<span class='badge' style='background:{c}'>{s}</span>", unsafe_allow_html=True)
-
     age = st.number_input("🎂 Age", 1, 100, 30)
 
-skin = st.slider("🧬 Skin Thickness", 0, 100, 20)
-dpf = st.slider("🧬 Diabetes Pedigree Function", 0.0, 2.5, 0.5)
+skin = st.slider("Skin", 0, 100, 20)
+dpf = st.slider("DPF", 0.0, 2.5, 0.5)
 
-# ---------- BUTTON ----------
-if st.button("🚀 Analyze Health", use_container_width=True):
+# ---------- ANALYZE ----------
+if st.button("🚀 Analyze"):
 
     input_data = np.array([[preg, glucose, bp, skin, insulin, bmi, dpf, age]])
     input_data = scaler.transform(input_data)
 
-    prediction = model.predict(input_data)
+    pred = model.predict(input_data)
+    prob = model.predict_proba(input_data)[0][1] * 100
 
-    # ---------- RESULT ----------
-    st.markdown("## 🧾 Health Report")
+    st.markdown("## 🧾 Report")
 
-    # ---------- VISUAL RISK ----------
-    if prediction[0] == 1:
-        st.error("⚠️ High Risk")
-        st.progress(85)
+    st.metric("🧠 Risk", f"{prob:.2f}%")
+    st.progress(int(prob))
+
+    if pred[0] == 1:
+        st.error("High Risk")
     else:
-        st.success("✅ Low Risk")
-        st.progress(25)
+        st.success("Low Risk")
 
-    # ---------- REPORT LAYOUT ----------
-    colA, colB = st.columns(2)
+    # ---------- BMI GAUGE ----------
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=bmi,
+        title={'text': "BMI"},
+        gauge={'axis': {'range': [10, 50]}}
+    ))
+    st.plotly_chart(fig, use_container_width=True)
 
-    with colA:
-        st.markdown("### 🧠 Diabetes Info")
-        st.write("""
-        🔹 Type 1 – Insulin not produced  
-        🔹 Type 2 – Insulin resistance  
-        🔹 Gestational – During pregnancy  
-        """)
+    # ---------- GLUCOSE CHART ----------
+    fig2 = go.Figure()
+    fig2.add_trace(go.Bar(x=["You","Normal"], y=[glucose,110]))
+    st.plotly_chart(fig2, use_container_width=True)
 
-    with colB:
-        st.markdown("### 🩺 Recommendations")
-        st.write("""
-        ✔ Doctor consultation  
-        ✔ Blood sugar test  
-        ✔ Healthy diet  
-        ✔ Daily exercise  
-        """)
+    # ---------- PDF ----------
+    def create_pdf():
+        doc = SimpleDocTemplate("report.pdf")
+        styles = getSampleStyleSheet()
+        content = []
+        content.append(Paragraph(f"Risk: {prob:.2f}%", styles["Title"]))
+        doc.build(content)
+
+    create_pdf()
+
+    with open("report.pdf", "rb") as f:
+        st.download_button("📄 Download Report", f, file_name="report.pdf")
+
+# ---------- CHATBOT ----------
+st.markdown("## 🤖 AI Assistant")
+
+if "chat" not in st.session_state:
+    st.session_state.chat = []
+
+msg = st.text_input("Ask...")
+
+if msg:
+    st.session_state.chat.append(("You", msg))
+
+    if "diabetes" in msg.lower():
+        reply = "Diabetes = High blood sugar condition"
+    else:
+        reply = "Ask about health, BMI, diabetes"
+
+    st.session_state.chat.append(("Bot", reply))
+
+for s,m in st.session_state.chat:
+    st.write(f"**{s}:** {m}")
 
 # ---------- FOOTER ----------
 st.markdown("---")
-st.caption("🌟 AI Health Assistant | Not Medical Advice")
+st.caption("⚠️ Not medical advice")
