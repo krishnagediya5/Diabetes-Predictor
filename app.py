@@ -1,10 +1,7 @@
 import streamlit as st
 import sqlite3
-import bcrypt
 import numpy as np
 import pandas as pd
-import random, smtplib, time
-from email.mime.text import MIMEText
 from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
@@ -12,145 +9,104 @@ import plotly.graph_objects as go
 from reportlab.platypus import SimpleDocTemplate, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 
-# ---------- EMAIL CONFIG ----------
-EMAIL = "your_email@gmail.com"
-APP_PASSWORD = "your_app_password"
-
-def send_otp(email, otp):
-    msg = MIMEText(f"Your OTP is: {otp}")
-    msg['Subject'] = "Login OTP"
-    msg['From'] = EMAIL
-    msg['To'] = email
-
-    server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
-    server.login(EMAIL, APP_PASSWORD)
-    server.send_message(msg)
-    server.quit()
-
 # ---------- DATABASE ----------
-conn = sqlite3.connect("secure_users.db", check_same_thread=False)
+conn = sqlite3.connect("users.db", check_same_thread=False)
 c = conn.cursor()
 
 c.execute("""CREATE TABLE IF NOT EXISTS users(
-    username TEXT PRIMARY KEY,
-    password BLOB
-)""")
+            username TEXT,
+            password TEXT)""")
 
 c.execute("""CREATE TABLE IF NOT EXISTS history(
-    username TEXT,
-    result TEXT,
-    risk REAL,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-)""")
+            username TEXT,
+            result TEXT,
+            risk REAL)""")
 
-# ---------- SECURITY ----------
-def hash_password(p):
-    return bcrypt.hashpw(p.encode(), bcrypt.gensalt())
-
-def verify_password(p, h):
-    return bcrypt.checkpw(p.encode(), h)
-
-def add_user(u, p):
-    try:
-        c.execute("INSERT INTO users VALUES (?,?)", (u, hash_password(p)))
-        conn.commit()
-        return True
-    except:
-        return False
-
-def login_user(u, p):
-    c.execute("SELECT password FROM users WHERE username=?", (u,))
-    data = c.fetchone()
-    return data and verify_password(p, data[0])
-
-def save_result(u, r, prob):
-    c.execute("INSERT INTO history(username,result,risk) VALUES (?,?,?)",(u,r,prob))
+# ---------- FUNCTIONS ----------
+def add_user(username, password):
+    c.execute("INSERT INTO users VALUES (?,?)", (username, password))
     conn.commit()
+
+def login_user(username, password):
+    c.execute("SELECT * FROM users WHERE username=? AND password=?", (username,password))
+    return c.fetchone()
+
+def save_result(username, result, risk):
+    c.execute("INSERT INTO history VALUES (?,?,?)", (username,result,risk))
+    conn.commit()
+
+# ---------- PAGE ----------
+st.set_page_config(page_title="AI Diabetes Dashboard", layout="wide")
 
 # ---------- SESSION ----------
 if "login" not in st.session_state:
     st.session_state.login = False
-if "otp" not in st.session_state:
-    st.session_state.otp = None
-if "otp_time" not in st.session_state:
-    st.session_state.otp_time = 0
 
-# ---------- PAGE ----------
-st.set_page_config(page_title="Ultimate Secure AI Dashboard", layout="wide")
-
-# ---------- LOGIN PAGE ----------
+# ---------- LOGIN UI ----------
 if not st.session_state.login:
 
-    st.title("🔐 Secure Login System")
+    st.title("🔐 Login / Signup")
 
-    tab1, tab2, tab3 = st.tabs(["🔑 Login", "🆕 Signup", "📧 OTP Login"])
+    choice = st.radio("Select", ["Login","Signup"])
 
-    # LOGIN
-    with tab1:
-        u = st.text_input("Username")
-        p = st.text_input("Password", type="password")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
 
+    if choice == "Signup":
+        if st.button("Create Account"):
+            add_user(username, password)
+            st.success("Account created")
+
+    if choice == "Login":
         if st.button("Login"):
-            if login_user(u, p):
+            user = login_user(username, password)
+            if user:
                 st.session_state.login = True
-                st.session_state.user = u
-                st.success("Login successful")
+                st.session_state.user = username
+                st.success("Logged in")
                 st.rerun()
             else:
                 st.error("Invalid credentials")
 
-    # SIGNUP
-    with tab2:
-        u = st.text_input("New Username")
-        p = st.text_input("New Password", type="password")
-
-        if st.button("Create Account"):
-            if add_user(u, p):
-                st.success("Account created")
-            else:
-                st.error("User already exists")
-
-    # OTP LOGIN
-    with tab3:
-        email = st.text_input("Enter Email")
-
-        if st.button("Send OTP"):
-            otp = str(random.randint(100000,999999))
-            st.session_state.otp = otp
-            st.session_state.otp_time = time.time()
-
-            send_otp(email, otp)
-            st.success("OTP sent 📩")
-
-        otp_input = st.text_input("Enter OTP")
-
-        if st.button("Verify OTP"):
-            if time.time() - st.session_state.otp_time > 300:
-                st.error("OTP expired")
-            elif otp_input == st.session_state.otp:
-                st.session_state.login = True
-                st.session_state.user = email
-                st.success("OTP verified")
-                st.rerun()
-            else:
-                st.error("Wrong OTP")
-
 # ---------- MAIN APP ----------
 else:
 
-    st.sidebar.success(f"👋 {st.session_state.user}")
+    st.sidebar.success(f"👋 Welcome {st.session_state.user}")
     if st.sidebar.button("Logout"):
         st.session_state.login = False
         st.rerun()
 
+    # ---------- THEME ----------
+    theme = st.sidebar.toggle("🌙 Dark Mode", True)
+
+    if theme:
+        bg = "linear-gradient(135deg,#0f2027,#203a43,#2c5364)"
+        text = "white"
+    else:
+        bg = "#f5f7fa"
+        text = "black"
+
+    st.markdown(f"""
+    <style>
+    .main {{background:{bg}; color:{text};}}
+    .card {{
+        background: rgba(255,255,255,0.08);
+        padding:20px;
+        border-radius:20px;
+        margin-bottom:20px;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
     st.title("🩺 AI Diabetes Dashboard")
 
-    # ---------- DATA ----------
+    # ---------- LOAD DATA ----------
     df = pd.read_csv("diabetes.csv")
+
     X = df.drop(columns='Outcome', axis=1)
     Y = df['Outcome']
 
-    X_train, _, Y_train, _ = train_test_split(X, Y, test_size=0.2)
+    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2)
 
     scaler = StandardScaler()
     X_train = scaler.fit_transform(X_train)
@@ -186,41 +142,41 @@ else:
         prob = model.predict_proba(input_data)[0][1] * 100
 
         result = "High Risk" if pred[0]==1 else "Low Risk"
+
         save_result(st.session_state.user, result, prob)
 
         st.metric("Risk %", f"{prob:.2f}")
         st.progress(int(prob))
 
         if pred[0]==1:
-            st.error("⚠️ High Risk")
+            st.error("High Risk")
         else:
-            st.success("✅ Low Risk")
+            st.success("Low Risk")
 
-        # CHART
+        # ---------- CHART ----------
         fig = go.Figure(go.Bar(x=["You","Normal"], y=[glucose,110]))
         st.plotly_chart(fig)
 
-        # PDF
+        # ---------- PDF ----------
         def create_pdf():
             doc = SimpleDocTemplate("report.pdf")
             styles = getSampleStyleSheet()
             content = []
-            content.append(Paragraph(f"User: {st.session_state.user}", styles["Title"]))
-            content.append(Paragraph(f"Result: {result}", styles["Normal"]))
+            content.append(Paragraph(f"Result: {result}", styles["Title"]))
             content.append(Paragraph(f"Risk: {prob:.2f}%", styles["Normal"]))
             doc.build(content)
 
         create_pdf()
 
         with open("report.pdf","rb") as f:
-            st.download_button("📄 Download Report", f)
+            st.download_button("Download Report", f)
 
     # ---------- HISTORY ----------
     st.subheader("📊 Your History")
 
-    c.execute("SELECT result, risk, timestamp FROM history WHERE username=?", 
-              (st.session_state.user,))
+    c.execute("SELECT * FROM history WHERE username=?", (st.session_state.user,))
     data = c.fetchall()
 
     if data:
-        st.dataframe(pd.DataFrame(data, columns=["Result","Risk","Time"]))
+        df_hist = pd.DataFrame(data, columns=["User","Result","Risk"])
+        st.dataframe(df_hist)
