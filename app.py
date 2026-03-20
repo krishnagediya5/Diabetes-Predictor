@@ -68,8 +68,6 @@ if not st.session_state.login:
 else:
 
     st.sidebar.success(f"👋 {st.session_state.user}")
-
-    # ---------- ADMIN MODE ----------
     admin_mode = st.sidebar.toggle("🧑‍⚕️ Admin Dashboard")
 
     if st.sidebar.button("Logout"):
@@ -78,9 +76,8 @@ else:
 
     st.title("🩺 Diabetes Health Dashboard")
 
-    # ---------- ADMIN DASHBOARD ----------
+    # ---------- ADMIN ----------
     if admin_mode:
-
         st.subheader("📊 Admin Dashboard")
 
         c.execute("SELECT COUNT(*) FROM users")
@@ -99,6 +96,12 @@ else:
         if data:
             df_admin = pd.DataFrame(data, columns=["User","Result","Risk"])
             st.dataframe(df_admin)
+
+        # 📊 Admin graph
+        if data:
+            risks = [i[2] for i in data]
+            fig_admin = go.Figure(go.Scatter(y=risks, mode='lines+markers'))
+            st.plotly_chart(fig_admin, use_container_width=True)
 
         st.stop()
 
@@ -152,47 +155,71 @@ else:
         else:
             st.success("✅ Healthy")
 
-        # ---------- PDF (DOCTOR STYLE) ----------
+        # ---------- GRAPH 1 (Glucose) ----------
+        fig1 = go.Figure(go.Bar(
+            x=["Your Glucose","Normal"],
+            y=[glucose,110]
+        ))
+        st.plotly_chart(fig1, use_container_width=True)
+
+        # ---------- GRAPH 2 (Risk Pie) ----------
+        fig2 = go.Figure(go.Pie(
+            labels=["Risk","Safe"],
+            values=[prob,100-prob]
+        ))
+        st.plotly_chart(fig2, use_container_width=True)
+
+        # ---------- PDF ----------
         def create_pdf():
             doc = SimpleDocTemplate("report.pdf")
             styles = getSampleStyleSheet()
             content = []
 
-            content.append(Paragraph("🩺 DIABETES MEDICAL REPORT", styles["Title"]))
+            content.append(Paragraph("DIABETES MEDICAL REPORT", styles["Title"]))
             content.append(Spacer(1,10))
 
-            content.append(Paragraph(f"Patient Name: {st.session_state.user}", styles["Normal"]))
+            content.append(Paragraph(f"Patient: {st.session_state.user}", styles["Normal"]))
             content.append(Paragraph(f"Date: {datetime.date.today()}", styles["Normal"]))
             content.append(Spacer(1,10))
 
             content.append(Paragraph("Test Results:", styles["Heading2"]))
             content.append(Paragraph(f"Glucose: {glucose}", styles["Normal"]))
-            content.append(Paragraph(f"Blood Pressure: {bp}", styles["Normal"]))
+            content.append(Paragraph(f"BP: {bp}", styles["Normal"]))
             content.append(Paragraph(f"BMI: {bmi}", styles["Normal"]))
-            content.append(Spacer(1,10))
 
+            content.append(Spacer(1,10))
             content.append(Paragraph(f"Diagnosis: {result}", styles["Heading2"]))
-            content.append(Paragraph(f"Risk Level: {prob:.2f}%", styles["Normal"]))
-            content.append(Spacer(1,10))
+            content.append(Paragraph(f"Risk: {prob:.2f}%", styles["Normal"]))
 
-            content.append(Paragraph("Doctor Recommendations:", styles["Heading2"]))
-            content.append(Paragraph("• Maintain healthy diet", styles["Normal"]))
-            content.append(Paragraph("• Exercise regularly", styles["Normal"]))
-            content.append(Paragraph("• Regular checkups", styles["Normal"]))
-            content.append(Paragraph("• Consult doctor if needed", styles["Normal"]))
+            content.append(Spacer(1,10))
+            content.append(Paragraph("Recommendations:", styles["Heading2"]))
+            content.append(Paragraph("• Healthy diet", styles["Normal"]))
+            content.append(Paragraph("• Exercise daily", styles["Normal"]))
+            content.append(Paragraph("• Doctor consultation", styles["Normal"]))
 
             content.append(Spacer(1,20))
-            content.append(Paragraph("Authorized Signature: ____________", styles["Normal"]))
+            content.append(Paragraph("Signature: ____________", styles["Normal"]))
 
             doc.build(content)
 
         create_pdf()
 
         with open("report.pdf","rb") as f:
-            st.download_button("📄 Download Doctor Report", f, file_name="Diabetes_Report.pdf")
+            st.download_button("📄 Download Report", f)
 
-    # ---------- HISTORY ----------
-    st.subheader("📊 Your History")
+    # ---------- USER HISTORY GRAPH ----------
+    st.subheader("📈 Your Risk Trend")
+
+    c.execute("SELECT risk FROM history WHERE username=?", (st.session_state.user,))
+    data = c.fetchall()
+
+    if data:
+        risks = [i[0] for i in data]
+        fig3 = go.Figure(go.Scatter(y=risks, mode='lines+markers'))
+        st.plotly_chart(fig3, use_container_width=True)
+
+    # ---------- TABLE ----------
+    st.subheader("📊 Your History Table")
 
     c.execute("SELECT * FROM history WHERE username=?", (st.session_state.user,))
     data = c.fetchall()
