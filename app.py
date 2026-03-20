@@ -1,4 +1,5 @@
 import streamlit as st
+import sqlite3
 import numpy as np
 import pandas as pd
 from sklearn.svm import SVC
@@ -8,160 +9,174 @@ import plotly.graph_objects as go
 from reportlab.platypus import SimpleDocTemplate, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 
+# ---------- DATABASE ----------
+conn = sqlite3.connect("users.db", check_same_thread=False)
+c = conn.cursor()
+
+c.execute("""CREATE TABLE IF NOT EXISTS users(
+            username TEXT,
+            password TEXT)""")
+
+c.execute("""CREATE TABLE IF NOT EXISTS history(
+            username TEXT,
+            result TEXT,
+            risk REAL)""")
+
+# ---------- FUNCTIONS ----------
+def add_user(username, password):
+    c.execute("INSERT INTO users VALUES (?,?)", (username, password))
+    conn.commit()
+
+def login_user(username, password):
+    c.execute("SELECT * FROM users WHERE username=? AND password=?", (username,password))
+    return c.fetchone()
+
+def save_result(username, result, risk):
+    c.execute("INSERT INTO history VALUES (?,?,?)", (username,result,risk))
+    conn.commit()
+
 # ---------- PAGE ----------
-st.set_page_config(page_title="Ultimate AI Health Dashboard", layout="wide")
+st.set_page_config(page_title="AI Diabetes Dashboard", layout="wide")
 
-# ---------- SIDEBAR ----------
-st.sidebar.title("⚙️ Settings")
-theme = st.sidebar.toggle("🌙 Dark Mode", True)
+# ---------- SESSION ----------
+if "login" not in st.session_state:
+    st.session_state.login = False
 
-# ---------- THEME ----------
-if theme:
-    bg = "linear-gradient(135deg,#0f2027,#203a43,#2c5364)"
-    text = "white"
+# ---------- LOGIN UI ----------
+if not st.session_state.login:
+
+    st.title("🔐 Login / Signup")
+
+    choice = st.radio("Select", ["Login","Signup"])
+
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+
+    if choice == "Signup":
+        if st.button("Create Account"):
+            add_user(username, password)
+            st.success("Account created")
+
+    if choice == "Login":
+        if st.button("Login"):
+            user = login_user(username, password)
+            if user:
+                st.session_state.login = True
+                st.session_state.user = username
+                st.success("Logged in")
+                st.rerun()
+            else:
+                st.error("Invalid credentials")
+
+# ---------- MAIN APP ----------
 else:
-    bg = "#f5f7fa"
-    text = "black"
 
-# ---------- CSS ----------
-st.markdown(f"""
-<style>
-.main {{
-    background: {bg};
-    color: {text};
-}}
+    st.sidebar.success(f"👋 Welcome {st.session_state.user}")
+    if st.sidebar.button("Logout"):
+        st.session_state.login = False
+        st.rerun()
 
-.card {{
-    background: rgba(255,255,255,0.08);
-    padding:20px;
-    border-radius:20px;
-    margin-bottom:20px;
-}}
+    # ---------- THEME ----------
+    theme = st.sidebar.toggle("🌙 Dark Mode", True)
 
-.badge {{
-    padding:4px 10px;
-    border-radius:10px;
-    color:white;
-    font-size:13px;
-}}
-
-</style>
-""", unsafe_allow_html=True)
-
-# ---------- RANGE ----------
-def check_range(value, low, high):
-    if value < low:
-        return "🔵 Low", "#3498db"
-    elif value > high:
-        return "🔴 High", "#e74c3c"
+    if theme:
+        bg = "linear-gradient(135deg,#0f2027,#203a43,#2c5364)"
+        text = "white"
     else:
-        return "🟢 Normal", "#2ecc71"
+        bg = "#f5f7fa"
+        text = "black"
 
-# ---------- HEADER ----------
-st.title("🩺 Ultimate AI Diabetes Dashboard")
+    st.markdown(f"""
+    <style>
+    .main {{background:{bg}; color:{text};}}
+    .card {{
+        background: rgba(255,255,255,0.08);
+        padding:20px;
+        border-radius:20px;
+        margin-bottom:20px;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
 
-# ---------- DATA ----------
-df = pd.read_csv("diabetes.csv")
-X = df.drop(columns='Outcome', axis=1)
-Y = df['Outcome']
+    st.title("🩺 AI Diabetes Dashboard")
 
-X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2)
+    # ---------- LOAD DATA ----------
+    df = pd.read_csv("diabetes.csv")
 
-scaler = StandardScaler()
-X_train = scaler.fit_transform(X_train)
+    X = df.drop(columns='Outcome', axis=1)
+    Y = df['Outcome']
 
-model = SVC(kernel='linear', probability=True)
-model.fit(X_train, Y_train)
+    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2)
 
-# ---------- INPUT ----------
-st.markdown("### 📋 Patient Details")
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
 
-col1, col2, col3 = st.columns(3)
+    model = SVC(kernel='linear', probability=True)
+    model.fit(X_train, Y_train)
 
-with col1:
-    preg = st.number_input("🤰 Pregnancies", 0, 20, 1)
-    glucose = st.number_input("🍬 Glucose", 0, 200, 100)
-    s,c = check_range(glucose,70,140)
-    st.markdown(f"<span class='badge' style='background:{c}'>{s}</span>", unsafe_allow_html=True)
+    # ---------- INPUT ----------
+    col1, col2, col3 = st.columns(3)
 
-with col2:
-    bp = st.number_input("💓 BP", 0, 150, 80)
-    bmi = st.number_input("⚖️ BMI", 10.0, 50.0, 22.0)
+    with col1:
+        preg = st.number_input("Pregnancies", 0, 20, 1)
+        glucose = st.number_input("Glucose", 0, 200, 100)
 
-with col3:
-    insulin = st.number_input("💉 Insulin", 0, 300, 80)
-    age = st.number_input("🎂 Age", 1, 100, 30)
+    with col2:
+        bp = st.number_input("BP", 0, 150, 80)
+        bmi = st.number_input("BMI", 10.0, 50.0, 22.0)
 
-skin = st.slider("Skin", 0, 100, 20)
-dpf = st.slider("DPF", 0.0, 2.5, 0.5)
+    with col3:
+        insulin = st.number_input("Insulin", 0, 300, 80)
+        age = st.number_input("Age", 1, 100, 30)
 
-# ---------- ANALYZE ----------
-if st.button("🚀 Analyze"):
+    skin = st.slider("Skin", 0, 100, 20)
+    dpf = st.slider("DPF", 0.0, 2.5, 0.5)
 
-    input_data = np.array([[preg, glucose, bp, skin, insulin, bmi, dpf, age]])
-    input_data = scaler.transform(input_data)
+    # ---------- ANALYZE ----------
+    if st.button("🚀 Analyze"):
 
-    pred = model.predict(input_data)
-    prob = model.predict_proba(input_data)[0][1] * 100
+        input_data = np.array([[preg, glucose, bp, skin, insulin, bmi, dpf, age]])
+        input_data = scaler.transform(input_data)
 
-    st.markdown("## 🧾 Report")
+        pred = model.predict(input_data)
+        prob = model.predict_proba(input_data)[0][1] * 100
 
-    st.metric("🧠 Risk", f"{prob:.2f}%")
-    st.progress(int(prob))
+        result = "High Risk" if pred[0]==1 else "Low Risk"
 
-    if pred[0] == 1:
-        st.error("High Risk")
-    else:
-        st.success("Low Risk")
+        save_result(st.session_state.user, result, prob)
 
-    # ---------- BMI GAUGE ----------
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=bmi,
-        title={'text': "BMI"},
-        gauge={'axis': {'range': [10, 50]}}
-    ))
-    st.plotly_chart(fig, use_container_width=True)
+        st.metric("Risk %", f"{prob:.2f}")
+        st.progress(int(prob))
 
-    # ---------- GLUCOSE CHART ----------
-    fig2 = go.Figure()
-    fig2.add_trace(go.Bar(x=["You","Normal"], y=[glucose,110]))
-    st.plotly_chart(fig2, use_container_width=True)
+        if pred[0]==1:
+            st.error("High Risk")
+        else:
+            st.success("Low Risk")
 
-    # ---------- PDF ----------
-    def create_pdf():
-        doc = SimpleDocTemplate("report.pdf")
-        styles = getSampleStyleSheet()
-        content = []
-        content.append(Paragraph(f"Risk: {prob:.2f}%", styles["Title"]))
-        doc.build(content)
+        # ---------- CHART ----------
+        fig = go.Figure(go.Bar(x=["You","Normal"], y=[glucose,110]))
+        st.plotly_chart(fig)
 
-    create_pdf()
+        # ---------- PDF ----------
+        def create_pdf():
+            doc = SimpleDocTemplate("report.pdf")
+            styles = getSampleStyleSheet()
+            content = []
+            content.append(Paragraph(f"Result: {result}", styles["Title"]))
+            content.append(Paragraph(f"Risk: {prob:.2f}%", styles["Normal"]))
+            doc.build(content)
 
-    with open("report.pdf", "rb") as f:
-        st.download_button("📄 Download Report", f, file_name="report.pdf")
+        create_pdf()
 
-# ---------- CHATBOT ----------
-st.markdown("## 🤖 AI Assistant")
+        with open("report.pdf","rb") as f:
+            st.download_button("Download Report", f)
 
-if "chat" not in st.session_state:
-    st.session_state.chat = []
+    # ---------- HISTORY ----------
+    st.subheader("📊 Your History")
 
-msg = st.text_input("Ask...")
+    c.execute("SELECT * FROM history WHERE username=?", (st.session_state.user,))
+    data = c.fetchall()
 
-if msg:
-    st.session_state.chat.append(("You", msg))
-
-    if "diabetes" in msg.lower():
-        reply = "Diabetes = High blood sugar condition"
-    else:
-        reply = "Ask about health, BMI, diabetes"
-
-    st.session_state.chat.append(("Bot", reply))
-
-for s,m in st.session_state.chat:
-    st.write(f"**{s}:** {m}")
-
-# ---------- FOOTER ----------
-st.markdown("---")
-st.caption("⚠️ Not medical advice")
+    if data:
+        df_hist = pd.DataFrame(data, columns=["User","Result","Risk"])
+        st.dataframe(df_hist)
