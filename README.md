@@ -8,17 +8,35 @@ The platform integrates **data input, machine learning prediction, analytics, an
 
 ---
 
-# ✨ Key Features
+## ✨ Key Features
 
-🔐 *Secure User Authentication** – Login and signup system using SQLite database
-🤖 *Machine Learning Prediction** – Predicts diabetes risk using Support Vector Machine (SVM)
-📊 **Interactive Visualizations** – Dynamic charts and graphs using Plotly and Matplotlib
-📈 **Risk Tracking History** – Stores and displays historical prediction results
-🧑‍⚕️ **Admin Dashboard** – Real-time system analytics and monitoring
-📄 **Automated PDF Medical Reports** – Generates downloadable diagnostic reports
-📉 **Model Performance Metrics** – Accuracy, Precision, Recall, and F1 Score evaluation
-🎨 **Modern UI Design** – Responsive and visually appealing dashboard interface
-⚠️ **Medical Disclaimer Integration** – Ensures responsible healthcare usage
+* 🔐 **Secure User Authentication**
+  Login and signup system using SQLite database
+
+* 🤖 **Machine Learning Prediction**
+  Predicts diabetes risk using Support Vector Machine (SVM)
+
+* 📊 **Interactive Visualizations**
+  Dynamic charts and graphs using Plotly and Matplotlib
+
+* 📈 **Risk Tracking History**
+  Stores and displays historical prediction results
+
+* 🧑‍⚕️ **Admin Dashboard**
+  Real-time system analytics and monitoring
+
+* 📄 **Automated PDF Medical Reports**
+  Generates downloadable diagnostic reports
+
+* 📉 **Model Performance Metrics**
+  Displays Accuracy, Precision, Recall, and F1 Score
+
+* 🎨 **Modern UI Design**
+  Responsive and visually appealing dashboard interface
+
+* ⚠️ **Medical Disclaimer Integration**
+  Ensures responsible healthcare usage
+
 
 ---
 
