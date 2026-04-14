@@ -10,8 +10,8 @@ The platform integrates **data input, machine learning prediction, analytics, an
 
 # ✨ Key Features
 
-🔐 **Secure User Authentication** – Login and signup system using SQLite database
-🤖 **Machine Learning Prediction** – Predicts diabetes risk using Support Vector Machine (SVM)
+🔐 *Secure User Authentication** – Login and signup system using SQLite database
+🤖 *Machine Learning Prediction** – Predicts diabetes risk using Support Vector Machine (SVM)
 📊 **Interactive Visualizations** – Dynamic charts and graphs using Plotly and Matplotlib
 📈 **Risk Tracking History** – Stores and displays historical prediction results
 🧑‍⚕️ **Admin Dashboard** – Real-time system analytics and monitoring
