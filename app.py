@@ -106,7 +106,7 @@ else:
 
     # ---------- MODEL ----------
     df = pd.read_csv("diabetes.csv")
-    X = df.drop(columns='Outcome', axis=1)
+    X = df.drop(columns='Outcome')
     Y = df['Outcome']
 
     X_train,_,Y_train,_ = train_test_split(X,Y,test_size=0.2)
